@@ -40,3 +40,32 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Animaciones para personajes */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes sway-x {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  50% { transform: translateX(6px) rotate(1deg); }
+}
+
+@keyframes glow {
+  0%, 100% { filter: drop-shadow(0 0 0px rgba(255,255,255,0.0)); }
+  50% { filter: drop-shadow(0 0 14px rgba(255,255,255,0.45)); }
+}
+
+.character-anim {
+  animation: float-y 4s ease-in-out infinite, glow 3s ease-in-out infinite;
+}
+
+.character-anim.sway {
+  animation: float-y 4s ease-in-out infinite, sway-x 6s ease-in-out infinite, glow 3s ease-in-out infinite;
+}
+
+.character-hover:hover {
+  transform: scale(1.03);
+  transition: transform 250ms ease;
+}

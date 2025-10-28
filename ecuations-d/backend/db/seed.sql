@@ -188,6 +188,46 @@ CREATE TABLE IF NOT EXISTS progreso_niveles (
   FOREIGN KEY (nivel_id) REFERENCES niveles(id) ON DELETE CASCADE
 );
 
+-- Prerequisitos de misiones (opcional)
+CREATE TABLE IF NOT EXISTS mision_prerequisitos (
+  mision_id VARCHAR(50) NOT NULL,
+  requiere_id VARCHAR(50) NOT NULL,
+  PRIMARY KEY (mision_id, requiere_id),
+  FOREIGN KEY (mision_id) REFERENCES misiones(id) ON DELETE CASCADE,
+  FOREIGN KEY (requiere_id) REFERENCES misiones(id) ON DELETE CASCADE
+);
+
+-- Recompensas por misión (opcional)
+CREATE TABLE IF NOT EXISTS mision_recompensas (
+  mision_id VARCHAR(50) NOT NULL PRIMARY KEY,
+  recompensa_monedas INT NOT NULL DEFAULT 0,
+  recompensa_vidas INT NOT NULL DEFAULT 0,
+  recompensa_armas INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (mision_id) REFERENCES misiones(id) ON DELETE CASCADE
+);
+
+-- Ejemplos de recompensas (si existen las misiones)
+INSERT INTO mision_recompensas (mision_id, recompensa_monedas, recompensa_vidas, recompensa_armas) VALUES
+  ('modelado', 50, 0, 0)
+ON DUPLICATE KEY UPDATE
+  recompensa_monedas = VALUES(recompensa_monedas),
+  recompensa_vidas = VALUES(recompensa_vidas),
+  recompensa_armas = VALUES(recompensa_armas);
+
+INSERT INTO mision_recompensas (mision_id, recompensa_monedas, recompensa_vidas, recompensa_armas) VALUES
+  ('separables', 75, 1, 0)
+ON DUPLICATE KEY UPDATE
+  recompensa_monedas = VALUES(recompensa_monedas),
+  recompensa_vidas = VALUES(recompensa_vidas),
+  recompensa_armas = VALUES(recompensa_armas);
+
+INSERT INTO mision_recompensas (mision_id, recompensa_monedas, recompensa_vidas, recompensa_armas) VALUES
+  ('cualitativo', 60, 0, 1)
+ON DUPLICATE KEY UPDATE
+  recompensa_monedas = VALUES(recompensa_monedas),
+  recompensa_vidas = VALUES(recompensa_vidas),
+  recompensa_armas = VALUES(recompensa_armas);
+
 -- Tabla para restablecimiento de contraseñas
 CREATE TABLE IF NOT EXISTS password_resets (
   id INT NOT NULL AUTO_INCREMENT,

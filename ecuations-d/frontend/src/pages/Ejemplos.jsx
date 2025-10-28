@@ -5,7 +5,7 @@ export default function Ejemplos() {
 
   // Lista de ejemplos con contenido detallado
   const examples = [
-    {
+    {     
       id: 1,
       title: "Modelación por medio de ecuaciones diferenciales",
       description: "Método de resolución para EDOs de primer orden",
@@ -562,14 +562,14 @@ export default function Ejemplos() {
 
   return (
     <div className="mx-auto max-w-6xl p-6 text-white">
-      <h1 className="text-4xl font-bold mb-6 bg-gradient-to-r from-blue-400 via-purple-500 to-cyan-400 bg-clip-text text-transparent">📚 Ejemplos</h1>
+      <h1 className="text-4xl font-bold mb-6 bg-gradient-to-r from-cyan-400 via-sky-400 to-emerald-400 bg-clip-text text-transparent">?? Ejemplos</h1>
 
       {/* Ejemplos */}
       <div className="space-y-6">
         {examples.map((topic) => (
           <div
             key={topic.id}
-            className="bg-gradient-to-r from-purple-800/80 to-pink-800/80 rounded-xl overflow-hidden border-2 border-purple-400/50 transition duration-300 hover:shadow-xl hover:shadow-purple-500/25 cursor-pointer backdrop-blur-sm"
+            className="bg-gradient-to-r from-slate-900/70 to-slate-800/70 rounded-xl overflow-hidden border-2 border-cyan-400/40 transition duration-300 hover:shadow-xl hover:shadow-cyan-500/20 cursor-pointer backdrop-blur-sm"
             onClick={() => setOpenId((prev) => (prev === topic.id ? null : topic.id))}
           >
             <div className="flex">
@@ -581,7 +581,7 @@ export default function Ejemplos() {
               <div className="p-4 flex-1">
                 <h3 className="text-xl font-semibold mb-2">{topic.title}</h3>
                 <p className="text-slate-400">{topic.description}</p>
-                <div className="mt-2 text-sm text-blue-400">
+                <div className="mt-2 text-sm text-sky-400">
                   {openId === topic.id ? '▼ Cerrar ejemplos' : '▶ Ver ejemplos'}
                 </div>
               </div>
@@ -590,7 +590,7 @@ export default function Ejemplos() {
             {/* Contenido expandible dentro de la tarjeta */}
             {openId === topic.id && (
               <div className="px-4 pb-4">
-                <h4 className="text-xl font-bold text-blue-400 mb-4">Ejemplos Detallados</h4>
+                <h4 className="text-xl font-bold text-sky-400 mb-4">Ejemplos Detallados</h4>
 
                 {topic.examples && topic.examples.map((ex, index) => (
                   <div key={index} className="bg-gradient-to-r from-cyan-800/60 to-blue-800/60 rounded-lg p-4 mb-4 border border-cyan-400/30 backdrop-blur-sm">
@@ -598,7 +598,7 @@ export default function Ejemplos() {
                       {index + 1}. {ex.title}
                     </h5>
 
-                    <div className="bg-gradient-to-r from-yellow-800/40 to-orange-800/40 rounded p-3 mb-3 border border-yellow-400/20">
+                    <div className="bg-gradient-to-r from-yellow-800/30 to-orange-800/30 rounded p-3 mb-3 border border-yellow-400/20">
                       <span className="text-yellow-300 font-medium">Problema:</span>
                       <p className="text-yellow-100 mt-1">{ex.problem}</p>
                     </div>
@@ -608,7 +608,7 @@ export default function Ejemplos() {
                       <ol className="space-y-2 mt-2">
                         {ex.solution.map((step, stepIndex) => (
                           <li key={stepIndex} className="flex items-start">
-                            <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5 flex-shrink-0">
+                            <span className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold mr-3 mt-0.5 flex-shrink-0">
                               {stepIndex + 1}
                             </span>
                             <span className="text-green-100 leading-relaxed">{step}</span>
@@ -626,3 +626,13 @@ export default function Ejemplos() {
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+

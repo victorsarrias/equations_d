@@ -1,4 +1,4 @@
-export const misiones = [
+﻿export const misiones = [
   { id: "modelado", titulo: "Modelación por medio de E.D", estado: "completado" },
   { id: "separables", titulo: "Separación de variables", estado: "en-curso" },
   { id: "cualitativo", titulo: "Procedimiento Cualitativo", estado: "jugar" },

@@ -13,6 +13,7 @@ import Niveles from "./pages/niveles.jsx";
 import Auth from "./pages/Auth.jsx";
 import Reset from "./pages/Reset.jsx";
 import Profile from "./pages/Profile.jsx";
+import Logout from "./pages/Logout.jsx";
 import Ayuda from "./pages/Ayuda.jsx";
 
 const Page = ({ title }) => (
@@ -50,8 +51,10 @@ export default function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/reset" element={<Reset />} />
         <Route path="/aventuras" element={<Aventuras />} />
-        <Route path="/jugar" element={<Jugar />} />
+        {/* Ruta de juego protegida: requiere sesión */}
+        <Route path="/jugar" element={<ProtectedRoute><Jugar /></ProtectedRoute>} />
         <Route path="/perfil" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/logout" element={<Logout />} />
    
         
         {/* 404 fallback */}

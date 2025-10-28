@@ -1,0 +1,182 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { misiones as fallbackMissions } from "../data/misiones";
+import { getMisiones } from "../api";
+import { useAuth } from "../context/AuthContext.jsx";
+
+const Pill = ({ estado }) => {
+  const map = {
+    completado: "bg-gradient-to-r from-green-500 to-emerald-600",
+    "en-curso": "bg-gradient-to-r from-yellow-500 to-amber-600",
+    bloqueado: "bg-gradient-to-r from-slate-600 to-slate-700",
+    jugar: "bg-gradient-to-r from-purple-600 to-pink-600"
+  };
+  const labelMap = {
+    completado: "COMPLETADO",
+    "en-curso": "EN CURSO",
+    bloqueado: "BLOQUEADO",
+    jugar: "JUGAR"
+  };
+
+  const className = map[estado] || map.bloqueado;
+  const label = labelMap[estado] || estado?.toUpperCase?.() || "SIN ESTADO";
+
+  return (
+    <span className={`px-2 py-1 text-xs rounded text-white ${className}`}>
+      {label}
+    </span>
+  );
+};
+
+export default function Misiones() {
+  const navigate = useNavigate();
+  const { token } = useAuth();
+  const [tick, setTick] = useState(0);
+  const [missions, setMissions] = useState(fallbackMissions);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Fuerza refresco al volver a la pestaña (para leer localStorage de nuevo)
+  useEffect(() => {
+    const onFocus = () => setTick((x) => x + 1);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await getMisiones();
+        if (!active) return;
+        if (Array.isArray(data) && data.length) {
+          const mapped = data.map((m) => ({
+            id: m.id,
+            titulo: m.titulo,
+            estado: m.estado_default || "bloqueado",
+            descripcion: m.descripcion || "",
+            dificultad: m.dificultad || "facil",
+            environmentKey: m.environment_key || "default",
+            temaSlug: m.tema_slug || null,
+            temaTitulo: m.tema_titulo || null
+          }));
+          setMissions(mapped);
+          setError("");
+        } else {
+          setMissions([]);
+          setError("No hay misiones disponibles.");
+        }
+      } catch (err) {
+        if (!active) return;
+        console.error("Error cargando misiones:", err);
+        setMissions(fallbackMissions);
+        setError("No se pudo cargar la lista en linea. Mostrando datos locales.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Aplica progreso guardado a los estados
+  const items = useMemo(
+    () =>
+      missions.map((m) => {
+        const prog = localStorage.getItem(`progreso:${m.id}`); // 'en-curso' | 'completado'
+        const hasSave = !!(token && localStorage.getItem(`resume:${m.id}`));
+        let estado = m.estado;
+        if (prog === 'completado') estado = 'completado';
+        else if (prog === 'en-curso') estado = 'en-curso';
+        return { ...m, estado, hasSave };
+      }),
+    [missions, tick, token]
+  );
+
+  const handlePlay = (missionId) => {
+    if (!token) {
+      navigate(`/auth`);
+      return;
+    }
+    localStorage.setItem(`progreso:${missionId}`, "en-curso");
+    navigate(`/jugar?tema=${missionId}`);
+  };
+
+  const handleResume = (missionId) => {
+    if (!token) {
+      navigate(`/auth`);
+      return;
+    }
+    navigate(`/jugar?tema=${missionId}&resume=1`);
+  };
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto text-white">
+      <h1 className="text-3xl font-bold mb-4 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">
+        Misiones
+      </h1>
+
+      {loading && (
+        <div className="mb-4 text-slate-200">Cargando misiones...</div>
+      )}
+      {error && (
+        <div className="mb-4 rounded border border-yellow-400/40 bg-yellow-900/40 px-3 py-2 text-sm text-yellow-100">
+          {error}
+        </div>
+      )}
+
+      <div className="rounded-2xl p-4 grid gap-3 bg-gradient-to-br from-purple-900/60 to-pink-900/60 border-2 border-purple-400/30 backdrop-blur-sm">
+        {items.map((m) => (
+          <div
+            key={m.id}
+            className="flex items-center justify-between bg-gradient-to-r from-slate-800/70 to-slate-900/70 hover:from-purple-800/60 hover:to-pink-800/60 border border-purple-400/20 rounded-xl p-3 transition transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-pink-500/20"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-yellow-400 to-orange-500 text-white font-bold flex items-center justify-center shadow">
+                ★
+              </div>
+              <div>
+                <p className="font-medium text-white">{m.titulo}</p>
+                <div className="mt-1">
+                  <Pill estado={m.estado} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                className={`px-4 py-2 rounded-md text-white font-semibold shadow ${
+                  m.estado === "bloqueado"
+                    ? "bg-gradient-to-r from-slate-600 to-slate-700 cursor-not-allowed"
+                    : "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 hover:shadow-green-500/40"
+                }`}
+                disabled={m.estado === "bloqueado"}
+                onClick={() => handlePlay(m.id)}
+              >
+                {m.estado === "bloqueado" ? "BLOQUEADO" : "JUGAR"}
+              </button>
+
+              {m.hasSave && m.estado !== 'completado' && (
+                <button
+                  className="px-4 py-2 rounded-md text-white font-semibold shadow bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+                  onClick={() => handleResume(m.id)}
+                  title="Continuar donde lo dejaste"
+                >
+                  CONTINUAR
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {!items.length && !loading && (
+          <div className="text-slate-200 text-sm">
+            No hay misiones para mostrar por el momento.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

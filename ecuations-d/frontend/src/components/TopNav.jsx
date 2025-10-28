@@ -9,7 +9,7 @@ const FALLBACK_MENU = [
   { id: 2, etiqueta: "Misiones", ruta: "/misiones", orden: 2, requiere_auth: 0, solo_invited: 0 },
   { id: 3, etiqueta: "Ejemplos", ruta: "/ejemplos", orden: 3, requiere_auth: 0, solo_invited: 0 },
   { id: 4, etiqueta: "Niveles", ruta: "/niveles", orden: 4, requiere_auth: 0, solo_invited: 0 },
-  { id: 5, etiqueta: "Jugar", ruta: "/jugar", orden: 5, requiere_auth: 0, solo_invited: 0 },
+  { id: 5, etiqueta: "Jugar", ruta: "/jugar", orden: 5, requiere_auth: 1, solo_invited: 0 },
   { id: 6, etiqueta: "Ayuda", ruta: "/ayuda", orden: 6, requiere_auth: 0, solo_invited: 0 },
   { id: 5, etiqueta: "Aventuras", ruta: "/aventuras", orden: 5, requiere_auth: 0, solo_invited: 0 },
   { id: 6, etiqueta: "Perfil", ruta: "/perfil", orden: 6, requiere_auth: 1, solo_invited: 0 },
@@ -113,16 +113,6 @@ export default function TopNav() {
 
           {/* Menú de navegación */}
           <div className="flex space-x-2">
-            {lastMission && location.pathname === "/misiones" && (
-              <Link
-                to={`/jugar?tema=${encodeURIComponent(lastMission)}&resume=1`}
-                className={`${baseBtn} bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700`}
-                onMouseEnter={() => playSound("hover")}
-                onClick={() => playSound("click")}
-              >
-                Continuar
-              </Link>
-            )}
             {visibleMenu.map((item) => (
               <Link
                 key={`${item.id ?? item.ruta}-${item.ruta}`}
