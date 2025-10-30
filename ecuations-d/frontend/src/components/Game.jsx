@@ -505,6 +505,8 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
   const [giro, setGiro] = useState({ x: 0, y: 0, isActive: false });
   const [showDebugCollisions, setShowDebugCollisions] = useState(false);
   const [completeCountdown, setCompleteCountdown] = useState(0);
+  const [collectedLog, setCollectedLog] = useState([]); // últimos items recolectados
+  const [finishPrompt, setFinishPrompt] = useState(false);
   const resourceCards = [
     { id: 'coins', label: 'MONEDAS', value: gameState.coins, icon: '$', gradient: 'from-cyan-400 to-blue-500', border: 'border-cyan-300/60' },
     { id: 'lives', label: 'VIDAS', value: gameState.lives, icon: 'L', gradient: 'from-blue-500 to-indigo-600', border: 'border-indigo-400/60' },
@@ -681,6 +683,11 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
   // Sistema de teclas optimizado - INDEPENDIENTE
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Bloquear entradas cuando ya se tocó la bandera
+      if (completionLockRef.current) {
+        try { e.preventDefault(); } catch {}
+        return;
+      }
       // Prevenir comportamiento por defecto para teclas de juego
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'Space', 'KeyA', 'KeyD', 'KeyW', 'KeyP', 'KeyX'].includes(e.code)) {
         e.preventDefault();
@@ -736,6 +743,8 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
     };
 
     const handleKeyUp = (e) => {
+      // Bloquear entradas cuando ya se tocó la bandera
+      if (completionLockRef.current) return;
       setKeys(prev => ({ ...prev, [e.code]: false }));
     };
 
@@ -751,7 +760,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
 
   // Sistema de movimiento del personaje - COMPLETAMENTE INDEPENDIENTE
   const updateCharacter = useCallback(() => {
-    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete) return;
+    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete || completionLockRef.current) return;
 
     setCharacter(prevChar => {
       let newChar = { ...prevChar };
@@ -836,7 +845,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
 
   // Sistema de enemigos - INDEPENDIENTE del personaje
   const updateEnemies = useCallback(() => {
-    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete) return;
+    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete || completionLockRef.current) return;
 
     setEnemies(prev => {
       return prev.map(enemy => {
@@ -901,7 +910,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
 
   // Versión unificada: elimina enemigo y bala en el mismo ciclo usando snapshot de enemigos
   const updateBullets2 = useCallback(() => {
-    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete) return;
+    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete || completionLockRef.current) return;
     const hitEnemyIds = new Set();
     const snapshotEnemies = enemies.filter(e => !vanishingEnemiesRef.current.has(e.id));
     setBullets(prev => {
@@ -954,7 +963,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
 
   // Sistema de colisiones mejorado con bounding boxes
   const checkCollisions = useCallback(() => {
-    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete) return;
+    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete || completionLockRef.current) return;
 
     // Verificar coleccionables (bounding boxes precisos)
     setCollectibles(prev => {
@@ -976,6 +985,11 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
         );
 
         if (overlap) {
+          // Registrar en panel de recolectados
+          try {
+            const label = item.symbol || (item.type === 'coin' ? '$' : item.type || '?');
+            setCollectedLog(prev => [{ id: item.id, label, type: item.type, ts: Date.now() }, ...prev].slice(0, 8));
+          } catch {}
           setGameState(prevState => {
             const newState = { ...prevState };
             if (item.type === 'coin') newState.coins += item.value || 1;
@@ -1102,11 +1116,10 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
     if (touchFlag) {
       if (completionLockRef.current) return;
       completionLockRef.current = true;
-      try { console.log('[Game] Bandera tocada: fin inmediato'); } catch {}
-      // Salida inmediata (sin overlay de confirmación)
+      try { console.log('[Game] Bandera tocada'); } catch {}
+      // Congelar lógica del juego y mostrar aviso (sin reiniciar posiciones)
       playSound('complete', 200);
-      if (typeof onComplete === 'function') onComplete();
-      else window.location.href = '/misiones';
+      setFinishPrompt(true);
       return;
     }
   }, [character.x, character.y, gameState.isComplete, playSound]);
@@ -1312,6 +1325,38 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
 
   return (
     <div className="fixed inset-0 overflow-hidden">
+      {/* Panel: últimos recolectados */}
+      {collectedLog.length > 0 && (
+        <div className="absolute top-24 left-4 z-40 bg-slate-900/85 border border-cyan-400/40 rounded-lg px-3 py-2 w-52 pointer-events-none">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-cyan-300 mb-1">Recolectados</div>
+          <div className="flex flex-wrap gap-1">
+            {collectedLog.map(entry => (
+              <span key={`col-${entry.id}-${entry.ts}`} className="px-2 py-0.5 text-xs rounded bg-slate-700/70 border border-slate-500/50 text-slate-100">
+                {entry.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {finishPrompt && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-slate-800 p-8 rounded-lg text-white text-center max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-4">Mision terminada</h2>
+            <p className="mb-6 text-slate-200">Has llegado a la bandera.</p>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => {
+                  if (typeof onComplete === 'function') onComplete();
+                  else window.location.href = '/misiones';
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded font-semibold"
+              >
+                Salir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* HUD de recursos (arriba centrado) */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-stretch justify-center gap-3 px-4 pointer-events-none">
         {resourceCards.map(card => (
@@ -1593,6 +1638,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
     </div>
   );
 }
+
 
 
 
