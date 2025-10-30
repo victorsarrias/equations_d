@@ -526,6 +526,8 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
   const characterRef = useRef(character);
   const gameStateRef = useRef(gameState);
   const completionLockRef = useRef(false);
+  // Evitar registrar el mismo ítem dos veces por frames consecutivos
+  const recentCollectedRef = useRef(new Set());
   const mission = MISSION_DATA[missionId];
   const bgImage = ENV_BACKGROUNDS[missionId] || ENV_BACKGROUNDS.default;
   const vanishingEnemiesRef = useRef(new Set());
@@ -985,11 +987,18 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
         );
 
         if (overlap) {
-          // Registrar en panel de recolectados
-          try {
-            const label = item.symbol || (item.type === 'coin' ? '$' : item.type || '?');
-            setCollectedLog(prev => [{ id: item.id, label, type: item.type, ts: Date.now() }, ...prev].slice(0, 8));
-          } catch {}
+          // Registrar en panel de recolectados (excluye monedas) evitando duplicados por frame
+          if (item.type !== 'coin') {
+            try {
+              if (!recentCollectedRef.current.has(item.id)) {
+                recentCollectedRef.current.add(item.id);
+                const label = item.symbol || (item.type || '?');
+                setCollectedLog(prev => [{ id: item.id, label, type: item.type, ts: Date.now() }, ...prev].slice(0, 8));
+                // Limpiar del set poco después por seguridad
+                setTimeout(() => recentCollectedRef.current.delete(item.id), 1500);
+              }
+            } catch {}
+          }
           setGameState(prevState => {
             const newState = { ...prevState };
             if (item.type === 'coin') newState.coins += item.value || 1;
