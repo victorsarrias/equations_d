@@ -153,3 +153,19 @@ export async function completeMision(id) {
   if (!res.ok) throw new Error(data.message || "No se pudo marcar misión");
   return data;
 }
+
+// Misiones: marcar como completada con resumen (best-effort)
+export async function completeMisionSummary(id, summary) {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${BASE}/misiones/${encodeURIComponent(id)}/complete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify({ summary })
+  });
+  const data = await parseJsonResponse(res, {});
+  if (!res.ok) throw new Error(data.message || "No se pudo marcar misi��n");
+  return data;
+}

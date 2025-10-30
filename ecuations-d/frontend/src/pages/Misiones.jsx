@@ -103,7 +103,14 @@ export default function Misiones() {
           ? prereqs.every(pr => localStorage.getItem(`progreso:${pr.id}`) === 'completado')
           : true;
 
-        return { ...m, estado, hasSave, allPrereqDone };
+        // Leer 
+        let lastSummary = null;
+        try {
+          const raw = localStorage.getItem(`summary:${m.id}`);
+          if (raw) lastSummary = JSON.parse(raw);
+        } catch {}
+
+        return { ...m, estado, hasSave, allPrereqDone, lastSummary };
       }),
     [missions, tick, token]
   );
@@ -214,6 +221,35 @@ export default function Misiones() {
                   <p className="text-[11px] text-slate-400 mt-1">
                     Recompensas: {m.recompensas ? `Monedas ${m.recompensas.monedas || 0}${(m.recompensas.vidas||0) ? ", Vidas "+m.recompensas.vidas : ""}${(m.recompensas.armas||0) ? ", Armas "+m.recompensas.armas : ""}` : 'No definidas'}
                   </p>
+                  {m.lastSummary && (
+                    <>
+                      <div className="mt-2 text-[11px] text-slate-300">
+                        Última partida: {new Date(m.lastSummary.ts || Date.now()).toLocaleString()}
+                      </div>
+                      <div className="mt-1 grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px]">
+                        <div className="bg-slate-700/50 border border-cyan-400/30 rounded px-2 py-1">
+                          <div className="text-cyan-300 font-semibold">Monedas</div>
+                          <div className="text-white font-bold">{m.lastSummary.coins ?? 0}</div>
+                        </div>
+                        <div className="bg-slate-700/50 border border-indigo-400/30 rounded px-2 py-1">
+                          <div className="text-indigo-300 font-semibold">Vidas</div>
+                          <div className="text-white font-bold">{m.lastSummary.lives ?? 0}</div>
+                        </div>
+                        <div className="bg-slate-700/50 border border-violet-400/30 rounded px-2 py-1">
+                          <div className="text-violet-300 font-semibold">Ecuaciones</div>
+                          <div className="text-white font-bold">{m.lastSummary.equationsSolved ?? 0}</div>
+                        </div>
+                        <div className="bg-slate-700/50 border border-emerald-400/30 rounded px-2 py-1">
+                          <div className="text-emerald-300 font-semibold">Tesoros</div>
+                          <div className="text-white font-bold">{m.lastSummary.treasures ?? 0}</div>
+                        </div>
+                        <div className="bg-slate-700/50 border border-amber-400/30 rounded px-2 py-1 col-span-2 sm:col-span-1">
+                          <div className="text-amber-300 font-semibold">Munición</div>
+                          <div className="text-white font-bold">{m.lastSummary.ammo ?? 0}</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
             </div>
 

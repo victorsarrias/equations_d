@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useGameSounds } from '../hooks/useGameSounds';
+import { completeMisionSummary } from '../api';
 import GameCharacter, { CHARACTER_HEIGHT, CHARACTER_RENDER_OFFSET, CHARACTER_WEAPON_OFFSET, CHARACTER_WEAPON_SIZE } from './GameCharacter';
 import Collectible from './Collectible';
 import Enemy, { ENEMY_METRICS } from './Enemy';
@@ -17,7 +18,7 @@ const GAME_CONFIG = {
   cameraSpeed: 2,
   collisionDistance: 25, // Distancia más precisa para colisiones
   shootingCooldown: 500, // Cooldown para disparos en ms
-  bulletSpeed: 0.09,
+  bulletSpeed: 8,
   platformHeight: 20
 };
 
@@ -26,8 +27,8 @@ const CHARACTER_SIZE = { width: 128, height: 160 };
 
 // Caja de colisión ajustada y centrada
 const COLLISION = {
-  character: { width: 92, height: 160 },
-  enemyPadding: 6,
+  character: { width: 128, height: 160 },
+  enemyPadding: 0,
 };
 
 // Helpers AABB
@@ -50,8 +51,19 @@ const getEnemyAABB = (enemy) => {
   return { left, top, right, bottom };
 };
 
+// AABB de la bandera (alineada al suelo visual y al mismo anclaje que el render)
+const getFlagAABB = () => {
+  const left = GAME_CONFIG.worldWidth - (FINISH_FLAG.width + 8);
+  const top = GAME_CONFIG.groundLevel - FINISH_FLAG.height;
+  const right = left + FINISH_FLAG.width;
+  const bottom = GAME_CONFIG.groundLevel + GAME_CONFIG.groundBaselineOffset;
+  return { left, top, right, bottom };
+};
+
 // Escala visual para la textura de plataforma (colisión se mantiene con width/height reales)
 const PLATFORM_VISUAL_SCALE = 2;
+// Zona final: completar misión al entrar en los últimos N px del mundo
+const FINISH_ZONE_WIDTH = 200;
 // Monedas generadas automáticamente
 const COIN_VALUE = 5;
 const COIN_VISUAL_SIZE = 48;
@@ -60,6 +72,8 @@ const BULLET_VISUAL_SIZE = 14;
 const BULLET_TRAIL_LENGTH = 42;
 const WEAPON_MUZZLE_ANGLE_DEG = -6; // debe coincidir con el rotate() del arma
 const EXPLOSION_SPRITE = '/assets/effects/explosion.gif';
+// Bandera de meta (usa la imagen proporcionada bandera.png)
+const FINISH_FLAG = { width: 120, height: 240, image: '/assets/decor/bandera.png' };
 // Fondos por misión (fallback a 'default')
 const ENV_BACKGROUNDS = {
   default: '/assets/aventuras/valle.jpg',
@@ -490,6 +504,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
   const [enemyExplosions, setEnemyExplosions] = useState([]);
   const [giro, setGiro] = useState({ x: 0, y: 0, isActive: false });
   const [showDebugCollisions, setShowDebugCollisions] = useState(false);
+  const [completeCountdown, setCompleteCountdown] = useState(0);
   const resourceCards = [
     { id: 'coins', label: 'MONEDAS', value: gameState.coins, icon: '$', gradient: 'from-cyan-400 to-blue-500', border: 'border-cyan-300/60' },
     { id: 'lives', label: 'VIDAS', value: gameState.lives, icon: 'L', gradient: 'from-blue-500 to-indigo-600', border: 'border-indigo-400/60' },
@@ -508,6 +523,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
   // Refs para evitar cierres obsoletos en los handlers de teclado
   const characterRef = useRef(character);
   const gameStateRef = useRef(gameState);
+  const completionLockRef = useRef(false);
   const mission = MISSION_DATA[missionId];
   const bgImage = ENV_BACKGROUNDS[missionId] || ENV_BACKGROUNDS.default;
   const vanishingEnemiesRef = useRef(new Set());
@@ -544,22 +560,33 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
   if (gameState.isComplete) {
     return (
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div className="bg-slate-800 p-8 rounded-lg text-white text-center">
-          <h2 className="text-2xl font-bold mb-4">Mision terminada</h2>
-          <div className="flex gap-4 justify-center">
-            <button
-              onClick={onComplete}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded"
-            >
-              Continuar
-            </button>
-            <button
-              onClick={onExit}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-            >
-              Salir
-            </button>
+        <div className="bg-slate-800 p-8 rounded-lg text-white text-center max-w-md w-full">
+          <h2 className="text-2xl font-bold mb-4">Misión completada</h2>
+          {/* Resumen de totales */}
+          <div className="grid grid-cols-2 gap-3 text-sm mb-4">
+            <div className="bg-slate-700/60 rounded p-2 border border-cyan-400/30">
+              <div className="text-cyan-300 font-semibold">Monedas</div>
+              <div className="text-white text-lg font-bold">{gameState.coins}</div>
+            </div>
+            <div className="bg-slate-700/60 rounded p-2 border border-indigo-400/30">
+              <div className="text-indigo-300 font-semibold">Vidas</div>
+              <div className="text-white text-lg font-bold">{gameState.lives}</div>
+            </div>
+            <div className="bg-slate-700/60 rounded p-2 border border-violet-400/30">
+              <div className="text-violet-300 font-semibold">Ecuaciones</div>
+              <div className="text-white text-lg font-bold">{gameState.equationsSolved}</div>
+            </div>
+            <div className="bg-slate-700/60 rounded p-2 border border-emerald-400/30">
+              <div className="text-emerald-300 font-semibold">Tesoros</div>
+              <div className="text-white text-lg font-bold">{gameState.treasures}</div>
+            </div>
+            <div className="bg-slate-700/60 rounded p-2 border border-amber-400/30 col-span-2">
+              <div className="text-amber-300 font-semibold">Munición</div>
+              <div className="text-white text-lg font-bold">{gameState.ammo ?? 0}</div>
+            </div>
           </div>
+
+          <p className="text-slate-200">Redirigiendo a Misiones en {Math.max(0, completeCountdown)}s...</p>
         </div>
       </div>
     );
@@ -673,46 +700,38 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
       
       // Manejar disparos (usar punta del arma y dirección de movimiento)
       if (e.code === 'KeyX') {
-        const gs = gameStateRef.current;
-        const c = characterRef.current;
-        if (gs.isPaused || gs.isGameOver) return;
+        const gs = gameStateRef.current || {};
+        const c = characterRef.current || character;
+        if (gs.isPaused || gs.isGameOver) { return; }
         const now = Date.now();
-        if (now - gs.lastShotTime > GAME_CONFIG.shootingCooldown) {
-          const effectiveDir = (c.vx !== 0 ? Math.sign(c.vx) : c.direction) || 1;
-          // Punta del arma: calcular posiciones locales y espejarlas correctamente
-          const tipLocalRight = CHARACTER_WEAPON_OFFSET.x + CHARACTER_WEAPON_SIZE.width / 2; // ~198
-          const tipLocalLeft = CHARACTER_SIZE.width - tipLocalRight; // puede ser negativo si el arma sobresale
+        const last = Number(gs.lastShotTime || 0);
+        if (now - last >= GAME_CONFIG.shootingCooldown) {
+          const effectiveDir = (c.vx !== 0 ? Math.sign(c.vx) : ((c.direction || 1)));
+          // Punta del arma coherente con GameCharacter
+          const tipLocalRight = CHARACTER_WEAPON_OFFSET.x + CHARACTER_WEAPON_SIZE.width / 2;
+          const tipLocalLeft = CHARACTER_SIZE.width - tipLocalRight;
           const muzzleLocalX = effectiveDir === 1 ? tipLocalRight : tipLocalLeft;
           const muzzleX = c.x + muzzleLocalX;
           const muzzleY = (c.y - CHARACTER_HEIGHT) + CHARACTER_WEAPON_OFFSET.y + CHARACTER_WEAPON_SIZE.height / 2;
 
-          // Vector de disparo estrictamente horizontal según la orientación
-          const speed = GAME_CONFIG.bulletSpeed;
+          const speed = GAME_CONFIG.bulletSpeed || 8;
           const vx = speed * effectiveDir;
           const vy = 0;
 
-          // Adelantar unos px la salida, horizontalmente, para no colisionar con el arma
           const tipAdvance = 6;
           const sx = muzzleX + tipAdvance * effectiveDir;
           const sy = muzzleY;
 
-          // Clamp suave para evitar que, mirando a la izquierda, aparezca fuera de la pantalla
           const minSpawn = c.x - 4;
           const maxSpawn = c.x + CHARACTER_SIZE.width + 4;
           const spawnX = Math.max(minSpawn, Math.min(sx, maxSpawn));
-          setBullets(prev => [...prev, {
-            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            x: spawnX,
-            y: sy,
-            vx,
-            vy
-          }]);
+
+          setBullets(prev => [...prev, { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, x: spawnX, y: sy, vx, vy }]);
           setGameState(prev => ({ ...prev, lastShotTime: now }));
-          playSound('shoot', 100);
+          playSound('shoot', 80);
         }
-        return;
       }
-      
+
       setKeys(prev => ({ ...prev, [e.code]: true }));
     };
 
@@ -797,7 +816,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
         }
       }
 
-      // Colisión con el suelo (solo si no está en una plataforma)
+      // colisión con el suelo (solo si no está en una plataforma)
       if (!onPlatform && newChar.y >= GAME_CONFIG.groundLevel + GAME_CONFIG.groundBaselineOffset) {
         newChar.y = GAME_CONFIG.groundLevel + GAME_CONFIG.groundBaselineOffset;
         newChar.vy = 0;
@@ -1000,7 +1019,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
         
         // Solo activar colisión si hay intersección real y no es invulnerable
         if (isColliding && !gameState.isInvulnerable) {
-          // Colisión con enemigo
+          // colisión con enemigo
           setGameState(prevState => {
             if (prevState.lives > 0) {
               playSound('damage', 500);
@@ -1060,23 +1079,56 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
     });
   }, [gameState.isPaused, gameState.isGameOver, gameState.isComplete, playSound]);
 
-  // Verificar si se completó la misión
+  // Verificar si se completó la misión (fin de pista, colisión con bandera o requisitos completos)
   useEffect(() => {
-    const missionComplete = collectibles.length === 0 && gameState.currentStep >= mission.steps.length - 1;
-    const atWorldEnd = getCharacterAABB(character).right >= GAME_CONFIG.worldWidth - 4;
-    if (missionComplete || atWorldEnd) {
-      setGameState(prev => ({ ...prev, isComplete: true }));
-      playSound('complete', 1000);
-    }
-  }, [collectibles.length, gameState.currentStep, mission.steps.length, character.x, playSound]);
+    if (gameState.isComplete) return;
+//     // Completa si se recolectó todo y se avanzaron los pasos, o si entra en la zona final
+//     const missionComplete = (collectibles.length === 0) && (gameState.currentStep >= mission.steps.length - 1);
+//     const atWorldEndZone = (character.x + CHARACTER_SIZE.width) >= (GAME_CONFIG.worldWidth - FINISH_ZONE_WIDTH);
+//     // También completa si el clamp horizontal alcanzó el límite exacto
+//     const atClampLimit = character.x >= (GAME_CONFIG.worldWidth - CHARACTER_SIZE.width - 1);
+//     const atWorldEnd = atWorldEndZone || atClampLimit;
 
-  // Auto-salida cuando se complete
-  useEffect(() => {
-    if (gameState.isComplete && typeof onComplete === 'function') {
-      const t = setTimeout(() => onComplete(), 1500);
-      return () => clearTimeout(t);
+    // Colisión con bandera usando AABB helpers (mismos anclajes que debug)
+    const charBox = getCharacterAABB({ x: character.x, y: character.y });
+    const flagBox = getFlagAABB();
+    const PAD = 24; // tolerancia para asegurar contacto visible (acercamiento)
+    const touchFlag = !(
+      charBox.right < (flagBox.left + PAD) ||
+      charBox.left > (flagBox.right - PAD) ||
+      charBox.bottom < flagBox.top ||
+      charBox.top > flagBox.bottom
+    );
+    if (touchFlag) {
+      if (completionLockRef.current) return;
+      completionLockRef.current = true;
+      try { console.log('[Game] Bandera tocada: fin inmediato'); } catch {}
+      // Salida inmediata (sin overlay de confirmación)
+      playSound('complete', 200);
+      if (typeof onComplete === 'function') onComplete();
+      else window.location.href = '/misiones';
+      return;
     }
-  }, [gameState.isComplete, onComplete]);
+  }, [character.x, character.y, gameState.isComplete, playSound]);
+
+  // Al completar, solo mostrar mensaje (sin redirigir automáticamente)
+  useEffect(() => {
+    if (!gameState.isComplete) return;
+    // Opcional: persistir resumen, pero no redirigir
+    try {
+      const summary = {
+        missionId,
+        ts: Date.now(),
+        coins: gameState.coins,
+        lives: gameState.lives,
+        ammo: gameState.ammo ?? 0,
+        treasures: gameState.treasures,
+        equationsSolved: gameState.equationsSolved
+      };
+      localStorage.setItem(`summary:${missionId}`, JSON.stringify(summary));
+      completeMisionSummary(missionId, summary).catch(() => {});
+    } catch {}
+  }, [gameState.isComplete, missionId, gameState.coins, gameState.lives, gameState.ammo, gameState.treasures, gameState.equationsSolved]);
 
   // Bucle de movimiento del personaje - 30 FPS
   useEffect(() => {
@@ -1197,6 +1249,8 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
     setGameState(prev => ({ ...prev, isMusicPlaying: !prev.isMusicPlaying }));
   };
 
+  // Nota: la redirección ahora la gestiona el overlay con cuenta regresiva de 5s
+
   if (gameState.isPaused) {
     return (
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
@@ -1309,6 +1363,35 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
           {/* Línea de energía en el suelo */}
           <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 opacity-80"></div>
         </div>
+
+        {/* Bandera de meta al final de la pista */}
+        <img
+          src={FINISH_FLAG.image}
+          alt="Meta"
+          className="absolute pointer-events-none select-none drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)]"
+          style={{
+            left: GAME_CONFIG.worldWidth - FINISH_FLAG.width - 8,
+            top: GAME_CONFIG.groundLevel - FINISH_FLAG.height,
+            width: FINISH_FLAG.width,
+            height: FINISH_FLAG.height,
+            zIndex: 6
+          }}
+        />
+
+        {showDebugCollisions && (() => {
+          const left = GAME_CONFIG.worldWidth - (FINISH_FLAG.width + 8);
+          const top = GAME_CONFIG.groundLevel - FINISH_FLAG.height;
+          const right = left + FINISH_FLAG.width;
+          const bottom = GAME_CONFIG.groundLevel + GAME_CONFIG.groundBaselineOffset;
+          return (
+            <div
+              className="absolute border-2 border-yellow-400 bg-yellow-400/10"
+              style={{ left, top, width: right - left, height: bottom - top, zIndex: 6 }}
+            >
+              <div className="absolute -top-6 left-0 text-yellow-300 text-xs font-bold">Flag Box</div>
+            </div>
+          );
+        })()}
 
         {/* Personaje */}
         <GameCharacter 
@@ -1510,6 +1593,20 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

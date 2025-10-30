@@ -1,0 +1,7 @@
+﻿import Game from './Game';
+
+export default function GameSimple(props) {
+  return <Game {...props} />;
+}
+
+
