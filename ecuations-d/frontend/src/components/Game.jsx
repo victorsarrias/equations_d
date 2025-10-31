@@ -87,6 +87,23 @@ const getFlagAABB = () => {
   return { left, top, right, bottom };
 };
 
+// Construir ecuación sugerida a partir de tokens
+const buildSuggestedEquation = (tokens = []) => {
+  const lower = tokens.map(t => String(t).toLowerCase());
+  const has = k => lower.some(x => x.includes(k));
+  const hasExact = k => lower.includes(k);
+  const dy = has('dy');
+  const dx = has('dx');
+  const dt = has('dt');
+  const yv = hasExact('y');
+  const k = hasExact('k');
+  if (dy && dt && yv && k) return 'dy/dt = k·y';
+  if (dy && dx && yv) return 'dy/dx = f(x)·g(y)';
+  if (dy && dt) return 'dy/dt = f(t,y)';
+  if (dy && dx) return 'dy/dx = f(x,y)';
+  return tokens.join(' ');
+};
+
 // Escala visual para la textura de plataforma (colisión se mantiene con width/height reales)
 const PLATFORM_VISUAL_SCALE = 2;
 // Zona final: completar misión al entrar en los últimos N px del mundo
@@ -533,6 +550,7 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
   const [showDebugCollisions, setShowDebugCollisions] = useState(false);
   const [completeCountdown, setCompleteCountdown] = useState(0);
   const [collectedLog, setCollectedLog] = useState([]); // últimos items recolectados
+  const [collectedAll, setCollectedAll] = useState([]); // todos los tokens no monetarios
   // Etiqueta flotante (limpia y re-hecha): solo letra tocada, visible sobre la cabeza
   const [touchLabel, setTouchLabel] = useState(null);
   const [finishPrompt, setFinishPrompt] = useState(false);
@@ -1027,6 +1045,9 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
 
               
 
+              // Registrar en 'todos' para el resumen final
+              setCollectedAll(prev => [...prev, label]);
+
               // Panel de recolectados: evitar duplicados inmediatos por frame
               if (!recentCollectedRef.current.has(item.id)) {
                 recentCollectedRef.current.add(item.id);
@@ -1399,9 +1420,29 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
       )}
       {finishPrompt && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-          <div className="bg-slate-800 p-8 rounded-lg text-white text-center max-w-md w-full">
+          <div className="bg-slate-800 p-8 rounded-lg text-white text-center w-full max-w-xl">
             <h2 className="text-2xl font-bold mb-4">Mision terminada</h2>
-            <p className="mb-6 text-slate-200">Has llegado a la bandera.</p>
+            <p className="mb-4 text-slate-200">Has llegado a la bandera.</p>
+            {/* Resumen de elementos recolectados (sin monedas) */}
+            {collectedAll.length > 0 && (
+              <div className="mb-4 text-left">
+                <div className="text-[12px] font-bold uppercase tracking-wide text-cyan-300 mb-1">Elementos recolectados</div>
+                <div className="flex flex-wrap gap-2">
+                  {collectedAll.map((t, i) => (
+                    <span key={`all-${i}-${t}`} className="px-2 py-0.5 text-xs rounded bg-slate-700/70 border border-slate-500/50 text-slate-100">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Ecuación sugerida */}
+            <div className="mb-6">
+              <div className="text-[12px] font-bold uppercase tracking-wide text-emerald-300 mb-1">Ecuación diferencial sugerida</div>
+              <div className="text-lg font-extrabold text-white">
+                {buildSuggestedEquation ? buildSuggestedEquation(collectedAll) : collectedAll.join(' ')}
+              </div>
+            </div>
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={() => {
