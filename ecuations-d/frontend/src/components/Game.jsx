@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+﻿﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useGameSounds } from '../hooks/useGameSounds';
 import { completeMisionSummary } from '../api';
 import GameCharacter, { CHARACTER_HEIGHT, CHARACTER_RENDER_OFFSET, CHARACTER_WEAPON_OFFSET, CHARACTER_WEAPON_SIZE } from './GameCharacter';
@@ -50,6 +50,33 @@ const getEnemyAABB = (enemy) => {
   const bottom = (enemy.y - m.floorOffset) + m.height - pad;
   return { left, top, right, bottom };
 };
+
+// Describir símbolo matemático para la etiqueta (robusto ante variantes)
+const describeSymbol = (s) => {
+  if (!s) return 'símbolo';
+  const raw = String(s).trim();
+  const v = raw.toLowerCase();
+  // Integrales (∫ o texto "integral" o variantes codificadas)
+  if (raw.indexOf('∫') !== -1 || /integral/i.test(raw) || v.indexOf('âˆ«') !== -1) return 'integral';
+  // Derivadas y diferenciales
+  if (v.indexOf('dy/dx') !== -1 || /^y'+$/.test(v)) return 'derivada';
+  if (v.indexOf('dy') !== -1 || v.indexOf('dx') !== -1 || v.indexOf('dt') !== -1 || v.indexOf('âˆ‚') !== -1) return 'diferencial';
+  // Variables
+  if (v === 'y') return 'variable dependiente';
+  if (v === 'x' || v === 't') return 'variable independiente';
+  // Funciones y constantes comunes
+  if (v === 'ln' || v === 'log' || v === 'exp' || v.startsWith('f(')) return 'función';
+  if (v === 'e' || v === 'pi' || raw === 'π' || v === 'k' || v === 'c') return 'constante';
+  // Operadores frecuentes
+  if (raw.indexOf('Σ') !== -1 || v.indexOf('âˆ‘') !== -1) return 'sumatoria';
+  if (raw.indexOf('∏') !== -1) return 'productoria';
+  if (raw.indexOf('∇') !== -1 || v.indexOf('âˆ‡') !== -1) return 'gradiente';
+  if (raw.indexOf('√') !== -1 || v.indexOf('âˆš') !== -1) return 'raíz';
+  if (raw.indexOf('|') !== -1) return 'valor absoluto';
+  return 'símbolo';
+};
+
+// Clasificar simbolos para mostrar etiqueta amigable\nconst classifySymbol = (s) => {\n  if (!s) return 'simbolo';\n  const raw = String(s).trim();\n  const v = raw.toLowerCase();\n  if (raw.includes('∫') || raw.includes('∮') || v.includes('integral') || v === 'special' || v.includes('âˆ«')) return 'integral';\n  if (/^y'+$/.test(v) || v.includes('dy/dx')) return 'derivada';\n  if (v.includes('dy') || v.includes('dx') || v.includes('dt') || raw.includes('∂') || v.includes('âˆ‚')) return 'diferencial';\n  if (v === 'y') return 'variable dependiente';\n  if (v === 'x' || v === 't') return 'variable independiente';\n  if (v === 'ln' || v === 'log' || v === 'exp' || v.startsWith('f(')) return 'funcion';\n  if (v === 'e' || v === 'pi' || raw === 'π' || v === 'k' || v === 'c') return 'constante';\n  if (raw.includes('Σ') || v.includes('âˆ‘')) return 'sumatoria';\n  if (raw.includes('∏')) return 'productoria';\n  if (raw.includes('∇') || v.includes('âˆ‡')) return 'gradiente';\n  if (raw.includes('√') || v.includes('âˆš')) return 'raiz';\n  if (raw.includes('|')) return 'valor absoluto';\n  return 'simbolo';\n};
 
 // AABB de la bandera (alineada al suelo visual y al mismo anclaje que el render)
 const getFlagAABB = () => {
@@ -506,6 +533,8 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
   const [showDebugCollisions, setShowDebugCollisions] = useState(false);
   const [completeCountdown, setCompleteCountdown] = useState(0);
   const [collectedLog, setCollectedLog] = useState([]); // últimos items recolectados
+  // Etiqueta flotante (limpia y re-hecha): solo letra tocada, visible sobre la cabeza
+  const [touchLabel, setTouchLabel] = useState(null);
   const [finishPrompt, setFinishPrompt] = useState(false);
   const resourceCards = [
     { id: 'coins', label: 'MONEDAS', value: gameState.coins, icon: '$', gradient: 'from-cyan-400 to-blue-500', border: 'border-cyan-300/60' },
@@ -965,7 +994,8 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
 
   // Sistema de colisiones mejorado con bounding boxes
   const checkCollisions = useCallback(() => {
-    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete || completionLockRef.current) return;
+    // Restablecido: no bloquear colisiones por candado para que etiquetas/panel funcionen
+    if (gameState.isPaused || gameState.isGameOver || gameState.isComplete) return;
 
     // Verificar coleccionables (bounding boxes precisos)
     setCollectibles(prev => {
@@ -990,11 +1020,17 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
           // Registrar en panel de recolectados (excluye monedas) evitando duplicados por frame
           if (item.type !== 'coin') {
             try {
+              const label = item.symbol || (item.type || '?');
+              const desc = describeSymbol(label);
+              setTouchLabel({ id: `${Date.now()}-${item.id}`, symbol: label, desc });
+              setTimeout(() => setTouchLabel(null), 1600);
+
+              
+
+              // Panel de recolectados: evitar duplicados inmediatos por frame
               if (!recentCollectedRef.current.has(item.id)) {
                 recentCollectedRef.current.add(item.id);
-                const label = item.symbol || (item.type || '?');
                 setCollectedLog(prev => [{ id: item.id, label, type: item.type, ts: Date.now() }, ...prev].slice(0, 8));
-                // Limpiar del set poco después por seguridad
                 setTimeout(() => recentCollectedRef.current.delete(item.id), 1500);
               }
             } catch {}
@@ -1334,6 +1370,20 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
 
   return (
     <div className="fixed inset-0 overflow-hidden">
+      {/* Etiqueta flotante de variable recolectada */}
+      {touchLabel && (
+        <div
+          className="absolute z-50 pointer-events-none"
+          style={{ left: character.x - camera.x + CHARACTER_SIZE.width / 2, top: character.y - CHARACTER_HEIGHT - 16, transform: 'translateX(-50%)' }}
+        >
+          <div className="px-3 py-1 rounded bg-emerald-600/90 text-white text-xs font-semibold shadow-lg border border-emerald-300/60">
+            <span className="mr-2">{touchLabel.symbol}</span>
+            {touchLabel.desc && (
+              <span className="text-emerald-200">{touchLabel.desc}</span>
+            )}
+          </div>
+        </div>
+      )}
       {/* Panel: últimos recolectados */}
       {collectedLog.length > 0 && (
         <div className="absolute top-24 left-4 z-40 bg-slate-900/85 border border-cyan-400/40 rounded-lg px-3 py-2 w-52 pointer-events-none">
@@ -1367,11 +1417,11 @@ export default function Game({ missionId = "empezando-aventura", onComplete, onE
         </div>
       )}
       {/* HUD de recursos (arriba centrado) */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex flex-wrap items-stretch justify-center gap-3 px-4 pointer-events-none">
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex flex-nowrap items-stretch justify-center gap-2 md:gap-3 px-4 pointer-events-none">
         {resourceCards.map(card => (
           <div
             key={card.id}
-            className={`min-w-[130px] bg-gradient-to-br ${card.gradient} border ${card.border} rounded-xl px-4 py-2 shadow-lg shadow-black/40 flex flex-col gap-1 pointer-events-auto`}
+            className={`min-w-[120px] bg-gradient-to-br ${card.gradient} border ${card.border} rounded-xl px-4 py-2 shadow-lg shadow-black/40 flex flex-col gap-1 pointer-events-auto`}
           >
             <span className="text-[11px] font-bold uppercase tracking-wide text-white/80 text-center">{card.label}</span>
             <div className="text-white text-lg font-extrabold flex items-center justify-center gap-2">
